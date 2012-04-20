@@ -27,6 +27,8 @@
 #include <stdio.h>
 #include "conio.h"
 
+#define size(X) sizeof(X)/sizeof(*X)
+
 struct Button
 {
     char c;
@@ -51,6 +53,26 @@ void output(snd_pcm_t *handle, snd_pcm_uframes_t frames, unsigned char* buffer)
         printf("failed while writei: %s\n", snd_strerror(ret));
 }
 
+int getF()
+{
+    int x;
+    char c[2];
+    for(x=0; x<2; x++)
+    {
+        if(!kbhit())
+            return 0;
+        c[x] = getch();
+    }
+    if(c[0] != 79)
+        return 0;
+    switch(c[1])
+    {
+        case 81: return 2;
+        case 82: return 3;
+        default: return 0;
+    }
+}
+
 int main(int argc, char* argv[])
 {
     snd_pcm_t *handle;
@@ -62,7 +84,7 @@ int main(int argc, char* argv[])
     double duration = 0.300;
     double ramp = 0.002;
     
-    struct Button buttons[] = {
+    struct Button dtmf[] = {
         {'1', 697, 1209},
         {'2', 697, 1336},
         {'3', 697, 1477},
@@ -85,10 +107,10 @@ int main(int argc, char* argv[])
         {'F', 941, 1477},
         
         {'G', 350, 440},    /* us dial */
-        {'H', 350, 450},    /* uk dial */
-        {'I', 440, 480},    /* us ringback */
-        {'J', 400, 450},    /* uk ringback */
-        {'K', 480, 620},    /* us busy */
+        {'H', 440, 480},    /* us ringback */
+        {'I', 480, 620},    /* us busy */
+        {'J', 350, 450},    /* uk dial */
+        {'K', 400, 450},    /* uk ringback */
         {'L', 425, 0},      /* eu dial/ringback/busy */
         
         {'X',  20,   20},
@@ -96,10 +118,29 @@ int main(int argc, char* argv[])
         {'Z', 500,  500}
     };
     
-    int ret, size, dir = 0, ivalue, bufcount;
+    struct Button blue[] = {
+        {'1', 700, 900},
+        {'2', 700, 1100},
+        {'3', 900, 1100},
+        {'4', 700, 1300},
+        {'5', 900, 1300},
+        {'6', 1100, 1300},
+        {'7', 700, 1500},
+        {'8', 900, 1500},
+        {'9', 1100, 1500},
+        {'0', 1300, 1500},
+        {'A', 700, 1700},   /* ST3 */
+        {'B', 900, 1700},   /* ST2 */
+        {'K', 1100, 1700},  /* KP */
+        {'C', 1300, 1700},  /* KP/ST2 */
+        {'S', 1500, 1700}   /* ST */
+    };
+    
+    int ret, size, dir = 0, ivalue, bufcount, buttonsize = size(dtmf);
     double sample, value;
     unsigned char *buffer;
-    struct Button *button;
+    struct Button *button, *buttons = dtmf;
+    char c;
     
     ret = snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK);
     if(ret < 0)
@@ -129,9 +170,29 @@ int main(int argc, char* argv[])
     
     while(1)
     {
-        button = find(toupper(getch()), buttons, sizeof(buttons)/sizeof(*buttons));
-        if(!button)
+        switch((c = toupper(getch())))
+        {
+            case 27:
+                switch(getF())
+                {
+                    case 2: /* F2 */
+                        buttons = dtmf;
+                        buttonsize = size(dtmf);
+                        continue;
+                    case 3: /* F3 */
+                        buttons = blue;
+                        buttonsize = size(blue);
+                        continue;
+                    default:
+                        continue;
+                }
+            default:
+                button = find(c, buttons, buttonsize);
+        }
+        if(c == 'Q')
             break;
+        if(!button)
+            continue;
         
         bufcount = 0;
         value = 0;
